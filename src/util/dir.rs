@@ -13,13 +13,13 @@ static mut TEMP_DIRS: Vec<PathBuf> = Vec::new();
 
 /// Creates a temporary directory with the name of [`path`] in the system's
 /// temporary directory.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `path` - The path which should be appended to the system's temporary directory.
-/// 
+///
 /// # Returns
-/// 
+///
 /// A result of the created temporary directory.
 pub fn create_temp_dir<P: AsRef<Path>>(path: P) -> io::Result<PathBuf> {
     let dir = temp_dir().join(path);
@@ -30,7 +30,7 @@ pub fn create_temp_dir<P: AsRef<Path>>(path: P) -> io::Result<PathBuf> {
 }
 
 /// Cleans up all generated temporary directories.
-/// 
+///
 /// The [`dtor`] attribute makes this function call at the end of the program.
 #[dtor]
 fn clean_temp_dirs() {
