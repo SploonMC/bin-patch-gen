@@ -34,7 +34,7 @@ pub fn filter_versions(document: Html) -> Vec<String> {
     let mut list: Vec<String> = Vec::new();
     for element in document.select(&a_selector) {
         if let Some(ref_href) = element.value().attr("href") {
-            let href = ref_href.strip_suffix(".json").unwrap_or_else(|| ref_href);
+            let href = ref_href.strip_suffix(".json").unwrap_or(ref_href);
 
             if version_regex.is_match(href) {
                 list.push(href.to_string());
