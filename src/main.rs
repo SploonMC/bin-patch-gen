@@ -72,7 +72,7 @@ async fn download_buildtools(path: &str) {
         .user_agent(USER_AGENT)
         .build()
         .expect("Unable to create client");
-    let response_stream = client
+    let mut response_stream = client
         .get(BUILDTOOLS_URL)
         .send()
         .await
@@ -81,7 +81,6 @@ async fn download_buildtools(path: &str) {
 
     let mut buildtools_file = File::create(path).expect("Unable to create BuildTools file");
 
-    futures_util::pin_mut!(response_stream);
     while let Some(chunk) = response_stream.next().await {
         let chunk = chunk.expect("Failed to read bytes");
         buildtools_file.write_all(&chunk).expect("Failed to write to file");
