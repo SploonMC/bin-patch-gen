@@ -10,3 +10,4 @@ tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros"] }
 scraper = "0.21.0"
 regex = { version = "1.11.1", features = [] }
 futures-util = "0.3.31"
+ctor = "0.2.8"

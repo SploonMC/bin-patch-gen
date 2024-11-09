@@ -1,10 +1,11 @@
-use std::{env, fs};
+use futures_util::StreamExt;
+use regex::Regex;
+use scraper::{Html, Selector};
 use std::fs::File;
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use futures_util::StreamExt;
-use scraper::{Html, Selector};
-use regex::Regex;
+use std::path::PathBuf;
+use std::env;
+use SpigotBinPatchGen::util::dir::create_temp_dir;
 
 const VERSIONS_URL: &str = "https://hub.spigotmc.org/versions";
 const VERSION_REGEX: &str = r"^1\.\d{1,2}(?:\.\d{1,2})?$";
@@ -19,13 +20,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let versions = filter_versions(fetch_url(VERSIONS_URL).await);
 
     println!("Downloading BuildTools...");
-    let temp_folder = Path::new("tmp");
-    if !temp_folder.exists() {
-        fs::create_dir(temp_folder).expect("Failed to create directory!");
-        println!("Created temp directory")
-    }
 
-    let buildtools_path = temp_folder.join("BuildTools.jar");
+    let temp_dir = create_temp_dir("sploon-patch-gen")?;
+
+    let buildtools_path = temp_dir.join("BuildTools.jar");
     download_buildtools(buildtools_path.to_str().unwrap()).await;
 
     // this is temporary, for testing
@@ -39,8 +37,13 @@ async fn fetch_url(url: &str) -> Html {
         .user_agent(USER_AGENT)
         .build()
         .expect("Unable to create client");
-    let response = client.get(url).send().await.
-        expect("Failed to receive response").text().await
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .expect("Failed to receive response")
+        .text()
+        .await
         .expect("Failed to parse response as string");
 
     Html::parse_document(&*response)
@@ -53,12 +56,7 @@ fn filter_versions(document: Html) -> Vec<String> {
     let mut list: Vec<String> = Vec::new();
     for element in document.select(&a_selector) {
         if let Some(ref_href) = element.value().attr("href") {
-            let href;
-            if let Some(option_href) = ref_href.strip_suffix(".json") {
-                href = option_href
-            } else {
-                href = ref_href;
-            }
+            let href = ref_href.strip_suffix(".json").unwrap_or_else(|| ref_href);
 
             if version_regex.is_match(href) {
                 list.push(href.to_string());
@@ -74,12 +72,16 @@ async fn download_buildtools(path: &str) {
         .user_agent(USER_AGENT)
         .build()
         .expect("Unable to create client");
-    let response_stream = client.get(BUILDTOOLS_URL).send()
-        .await.expect("Failed to receive response").bytes_stream();
+    let response_stream = client
+        .get(BUILDTOOLS_URL)
+        .send()
+        .await
+        .expect("Failed to receive response")
+        .bytes_stream()
+        .await;
 
     let mut buildtools_file = File::create(path).expect("Unable to create BuildTools file");
 
-    futures_util::pin_mut!(response_stream);
     while let Some(chunk) = response_stream.next().await {
         let chunk = chunk.expect("Failed to read bytes");
         buildtools_file.write_all(&chunk).expect("Failed to write to file");
