@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Downloading BuildTools...");
 
-    let temp_dir = create_temp_dir("sploon-patch-gen")?;
+    let temp_dir = create_temp_dir("bin-patch-gen")?;
 
     let buildtools_path = temp_dir.join("BuildTools.jar");
     download_buildtools(buildtools_path.to_str().unwrap()).await;
