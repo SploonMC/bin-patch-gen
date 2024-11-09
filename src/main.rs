@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::env;
-use SpigotBinPatchGen::util::dir::create_temp_dir;
+use bin_patch_gen::util::dir::create_temp_dir;
 
 const VERSIONS_URL: &str = "https://hub.spigotmc.org/versions";
 const VERSION_REGEX: &str = r"^1\.\d{1,2}(?:\.\d{1,2})?$";
@@ -77,11 +77,11 @@ async fn download_buildtools(path: &str) {
         .send()
         .await
         .expect("Failed to receive response")
-        .bytes_stream()
-        .await;
+        .bytes_stream();
 
     let mut buildtools_file = File::create(path).expect("Unable to create BuildTools file");
 
+    futures_util::pin_mut!(response_stream);
     while let Some(chunk) = response_stream.next().await {
         let chunk = chunk.expect("Failed to read bytes");
         buildtools_file.write_all(&chunk).expect("Failed to write to file");
