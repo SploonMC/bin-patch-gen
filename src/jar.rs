@@ -1,3 +1,5 @@
+#![allow(clippy::expect_fun_call)]
+
 use std::{fs, io, path};
 use std::fs::File;
 use std::path::Path;
@@ -5,7 +7,7 @@ use zip::ZipArchive;
 
 pub fn extract_jar<P: AsRef<Path>>(jar_file: P, output_directory: P) -> io::Result<()> {
     let file_stream = File::open(&jar_file)
-        .expect(&format!("An error occured while opening the file {}", jar_file.as_ref().to_str().unwrap()));
+        .expect(&format!("failed opening file {}", jar_file.as_ref().to_string_lossy()));
     let mut zip = ZipArchive::new(file_stream)?;
 
     for i in 0..zip.len() {
@@ -31,7 +33,7 @@ pub fn extract_jar<P: AsRef<Path>>(jar_file: P, output_directory: P) -> io::Resu
 
 pub fn has_dir<P: AsRef<Path>>(jar_file: P, file: &str) -> io::Result<bool> {
     let file_stream = File::open(&jar_file)
-        .expect(&format!("An error occured while opening the file {}", jar_file.as_ref().to_str().unwrap()));
+        .expect(&format!("failed opening file {}", jar_file.as_ref().to_string_lossy()));
     let mut zip = ZipArchive::new(file_stream)?;
 
     let file_name = path::absolute(file)?;

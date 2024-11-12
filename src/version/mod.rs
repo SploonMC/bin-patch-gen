@@ -1,6 +1,6 @@
 //! Fetches Minecraft versions from SpigotMC.
 
-pub(self) mod schema;
+mod schema;
 
 use crate::version::schema::{Version, VersionMeta, VersionsResponse};
 use crate::{download_url, fetch_url, get_url, Reqwsult};
@@ -57,7 +57,7 @@ pub async fn fetch_versions() -> Vec<String> {
 
 pub async fn fetch_piston_meta() -> Reqwsult<VersionsResponse> {
     let text = get_url(PISTON_META_URL).await?;
-    Ok(serde_json::from_str(&*text).unwrap_or_else(|err| {
+    Ok(serde_json::from_str(&text).unwrap_or_else(|err| {
         panic!("failed deserializing piston meta: {err:#?}")
     }))
 }
@@ -78,7 +78,7 @@ pub async fn fetch_version_meta(versions: VersionsResponse, version: String) -> 
         .clone();
 
     Ok(
-        serde_json::from_str(&*(get_url(version.url).await?)).unwrap_or_else(|err| {
+        serde_json::from_str(&(get_url(version.url).await?)).unwrap_or_else(|err| {
             panic!("failed deserializing version: {err:#?}")
         })
     )

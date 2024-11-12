@@ -66,7 +66,7 @@ pub async fn run_buildtools<P: AsRef<Path>>(java_home: P, buildtools_jar: P, wor
 
     if exit_status.success() {
         let file_regex = Regex::new(SPIGOT_JAR_REGEX).unwrap();
-        find_file(file_regex, &working_dir).await
+        find_file(&file_regex, &working_dir).await
     } else {
         let error_code = exit_status.code().unwrap_or(-1);
         Err(io::Error::new(
@@ -86,7 +86,7 @@ pub async fn run_buildtools<P: AsRef<Path>>(java_home: P, buildtools_jar: P, wor
 /// # Returns
 ///
 /// The first file that matches the given regex
-pub async fn find_file<P: AsRef<Path>>(regex: Regex, directory: P) -> io::Result<PathBuf> {
+pub async fn find_file<P: AsRef<Path>>(regex: &Regex, directory: P) -> io::Result<PathBuf> {
     for file in fs::read_dir(directory.as_ref())? {
         let unwrapped_file = file?;
         if regex.is_match(unwrapped_file.file_name().to_str().unwrap()) {
