@@ -5,9 +5,8 @@ use bin_patch_gen::jar::extract_jar;
 use bin_patch_gen::util::dir::create_temp_dir;
 use bin_patch_gen::util::TimeFormatter;
 use bin_patch_gen::version::fetch_versions;
-use bin_patch_gen::{jar, prepare_extraction_path, write_patch, JAR_VERSIONS_PATH};
+use bin_patch_gen::{config, jar, prepare_extraction_path, write_patch, MinecraftVersion, JAR_VERSIONS_PATH};
 use regex::Regex;
-use std::env;
 use std::path::Path;
 use tracing::info;
 use tracing_subscriber::fmt::format;
@@ -21,8 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing_subscriber::fmt().event_format(fmt).init();
 
-    let java_home = &*env::var("JAVA_HOME")
-        .expect("No JAVA_HOME set! Please set it manually if it wasn't set before.");
+    let config = config::read_config("config.toml")?;
 
     info!("Fetching versions...");
     let versions = fetch_versions().await;
@@ -44,10 +42,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let work_path = version_path.join(Path::new("work"));
         let regex = vanilla_jar_regex.clone();
 
+        let mc_version = MinecraftVersion::of(version.clone());
+        let java_home = config.java_home(mc_version.get_java_version());
+
         let result = run_buildtools(
             java_home,
-            buildtools_path.to_str().unwrap(),
-            version_path.to_str().unwrap(),
+            buildtools_path.clone(),
+            version_path.clone(),
             &version,
         )
         .await?;

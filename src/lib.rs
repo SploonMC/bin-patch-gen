@@ -4,6 +4,7 @@ use bzip2::Compression;
 use futures_util::StreamExt;
 use reqwest::IntoUrl;
 use scraper::Html;
+use std::fmt::Display;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
@@ -13,6 +14,7 @@ pub mod build_tools;
 pub mod jar;
 pub mod util;
 pub mod version;
+pub mod config;
 
 /// The user agent being used for all HTTP requests.
 pub const USER_AGENT: &str =
@@ -108,3 +110,36 @@ where
     fs::write(out, compressed)
 }
 
+pub struct MinecraftVersion(u8, u8, u8);
+
+impl Display for MinecraftVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.0, self.1, self.2)
+    }
+}
+
+impl MinecraftVersion {
+    pub fn of(string: String) -> Self {
+        let numbers = string.split(".")
+            .map(|string| string.parse::<u8>().unwrap())
+            .collect::<Vec<u8>>();
+
+        Self(numbers[0], numbers[1], numbers[2])
+    }
+
+    pub fn get_java_version(&self) -> u8 {
+        if self.1 < 17 {
+            return 8
+        }
+
+        if self.1 == 17 {
+            return 16
+        }
+
+        if self.1 < 20 && self.2 < 5 {
+            return 17
+        }
+
+        21
+    }
+}
