@@ -124,7 +124,7 @@ impl MinecraftVersion {
             .map(|string| string.parse::<u8>().unwrap())
             .collect::<Vec<u8>>();
 
-        Self(numbers[0], numbers[1], numbers[2])
+        Self(numbers[0], numbers[1], *numbers.get(2).unwrap_or(&0u8))
     }
 
     pub fn get_java_version(&self) -> u8 {
