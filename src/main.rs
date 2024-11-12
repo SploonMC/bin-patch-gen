@@ -2,12 +2,13 @@ use bin_patch_gen::build_tools::{download_buildtools, find_file, run_buildtools,
 use bin_patch_gen::util::dir::create_temp_dir;
 use bin_patch_gen::version::fetch_versions;
 use std::env;
+use std::fs::File;
 use std::path::Path;
 use regex::Regex;
 use tracing::info;
 use tracing_subscriber::fmt::format;
 use bin_patch_gen::jar::extract_jar;
-use bin_patch_gen::{jar, prepare_extraction_path, JAR_VERSIONS_PATH, MINECRAFT_VERSION_REGEX, SERVER_JAR_REGEX, SPIGOT_SERVER_JAR_REGEX};
+use bin_patch_gen::{jar, prepare_extraction_path, write_patch, JAR_VERSIONS_PATH, MINECRAFT_VERSION_REGEX, SERVER_JAR_REGEX, SPIGOT_SERVER_JAR_REGEX};
 use bin_patch_gen::util::TimeFormatter;
 
 #[tokio::main]
@@ -35,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     download_buildtools(buildtools_path.clone()).await?;
     info!("Downloaded BuildTools successfully!");
 
-    for version in versions {
+    for version in vec!["1.21.3"] {
         info!("Building Spigot for version {}...", version);
         let version_path = temp_dir.join(Path::new(&*version));
         let work_path = version_path.join(Path::new("work"));
@@ -88,6 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         // TODO make the code less messy and diff the files
+        write_patch(vanilla_jar, spigot_jar, &mut File::create("/tmp/diff")?)?;
     }
 
     Ok(())

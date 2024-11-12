@@ -1,11 +1,11 @@
-use std::fs;
+use crate::util::dir;
 use futures_util::StreamExt;
 use reqwest::IntoUrl;
 use scraper::Html;
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::Path;
-use crate::util::dir;
+use std::{fs, io};
 
 pub mod util;
 pub mod build_tools;
@@ -81,4 +81,20 @@ pub async fn prepare_extraction_path(extraction_path: &Path) -> std::io::Result<
 /// The site's HTML.
 pub async fn fetch_url<U: IntoUrl>(url: U) -> Reqwsult<Html> {
     Ok(Html::parse_document(&*(get_url(url).await?)))
+}
+
+pub fn write_patch<P: AsRef<Path>>(vanilla_jar: P, spigot_jar: P, out: &mut impl Write) -> io::Result<()> {
+    write_patch_internal(File::open(vanilla_jar)?, File::open(spigot_jar)?, out)
+}
+
+fn write_patch_internal<T>(mut vanilla: T, mut spigot: T, out: &mut impl Write) -> io::Result<()>
+where
+    T: Read + Write,
+{
+    let mut vanilla_bytes = [];
+    vanilla.read_exact(&mut vanilla_bytes)?;
+    let mut spigot_bytes = [];
+    spigot.read_exact(&mut spigot_bytes)?;
+
+    bsdiff::diff(&vanilla_bytes, &spigot_bytes, out)
 }
