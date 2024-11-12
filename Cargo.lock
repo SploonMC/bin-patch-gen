@@ -161,6 +161,7 @@ name = "bin_patch_gen"
 version = "0.1.0"
 dependencies = [
  "bsdiff",
+ "bzip2",
  "chrono",
  "ctor",
  "env_logger",

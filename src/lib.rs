@@ -6,6 +6,8 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 use std::{fs, io};
+use bzip2::Compression;
+use bzip2::write::BzEncoder;
 
 pub mod util;
 pub mod build_tools;
@@ -91,10 +93,18 @@ fn write_patch_internal<T>(mut vanilla: T, mut spigot: T, out: &mut impl Write) 
 where
     T: Read + Write,
 {
-    let mut vanilla_bytes = [];
-    vanilla.read_exact(&mut vanilla_bytes)?;
-    let mut spigot_bytes = [];
-    spigot.read_exact(&mut spigot_bytes)?;
+    let mut vanilla_bytes = Vec::new();
+    vanilla.read_to_end(&mut vanilla_bytes)?;
+    let mut spigot_bytes = Vec::new();
+    spigot.read_to_end(&mut spigot_bytes)?;
 
-    bsdiff::diff(&vanilla_bytes, &spigot_bytes, out)
+    let mut diff = Vec::new();
+    bsdiff::diff(&vanilla_bytes, &spigot_bytes, &mut diff)?;
+
+    let mut encoder = BzEncoder::new(Vec::new(), Compression::best());
+    encoder.write_all(&*diff)?;
+
+    let compressed = encoder.finish()?;
+
+    fs::write(out, compressed)
 }

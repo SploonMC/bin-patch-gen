@@ -58,9 +58,9 @@ pub async fn clear_directory<P: AsRef<Path>>(path: P) -> io::Result<()> {
     Ok(())
 }
 
-// /// Cleans up all generated temporary directories.
-// ///
-// /// The [`dtor`] attribute makes this function call at the end of the program.
+/// Cleans up all generated temporary directories.
+///
+/// The [`dtor`] attribute makes this function call at the end of the program.
 #[dtor]
 fn clean_temp_dirs() {
     unsafe {

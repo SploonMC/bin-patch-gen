@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     download_buildtools(buildtools_path.clone()).await?;
     info!("Downloaded BuildTools successfully!");
 
-    for version in vec!["1.21.3"] {
+    for version in versions {
         info!("Building Spigot for version {}...", version);
         let version_path = temp_dir.join(Path::new(&*version));
         let work_path = version_path.join(Path::new("work"));
@@ -52,12 +52,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("BuildTools finished building Spigot for version {}!", version);
         info!("Built jar location: {}", result.to_str().unwrap());
 
-
         info!("Checking whether jars need extraction...");
         let needs_extraction_vanilla = jar::has_dir(&vanilla_jar, JAR_VERSIONS_PATH).unwrap();
         let needs_extraction_spigot = jar::has_dir(&result, JAR_VERSIONS_PATH).unwrap();
 
         let vanilla_jar = if needs_extraction_vanilla {
+            info!("Vanilla jar needs extraction");
             info!("Extracting vanilla jar...");
             let vanilla_jar_extraction_path = version_path.join(Path::new("vanilla_jar"));
             prepare_extraction_path(&vanilla_jar_extraction_path).await.unwrap();
@@ -70,10 +70,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ).await.unwrap();
             find_file(Regex::new(SERVER_JAR_REGEX).unwrap(), versions_folder).await.unwrap()
         } else {
+            info!("Vanilla jar does not need extraction");
             vanilla_jar
         };
 
         let spigot_jar = if needs_extraction_spigot {
+            info!("Spigot jar needs extraction");
             info!("Extracting spigot jar...");
             let spigot_jar_extraction_path = version_path.join(Path::new("spigot_jar"));
             prepare_extraction_path(&spigot_jar_extraction_path).await.unwrap();
@@ -85,11 +87,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 spigot_jar_extraction_path.join(Path::new(JAR_VERSIONS_PATH))
             ).await.unwrap()
         } else {
+            info!("Spigot jar does not need extraction");
             result
         };
 
-        // TODO make the code less messy and diff the files
-        write_patch(vanilla_jar, spigot_jar, &mut File::create("/tmp/diff")?)?;
+        info!("Generating diff...");
+        write_patch(vanilla_jar, spigot_jar, &mut File::create("bsdiff.patch")?)?;
+        info!("Diff generated!");
     }
 
     Ok(())
