@@ -3,6 +3,7 @@ use std::{fs, io, path::{Path, PathBuf}};
 use proc_macros::serial_snake;
 
 #[serial_snake]
+#[derive(Default)]
 pub struct Config {
     java_8_home: String,
     java_16_home: String,
@@ -24,8 +25,7 @@ impl Config {
 
 pub fn read_config<P: AsRef<Path>>(path: P) -> io::Result<Config> {
     let content = fs::read_to_string(path)?;
-    match toml::from_str::<Config>(&content) {
-        Ok(c) => Ok(c),
-        Err(err) => Err(io::Error::new(io::ErrorKind::Other, err.to_string()))
-    }
+    toml::from_str::<Config>(&content).map_err(
+        |e| io::Error::new(io::ErrorKind::Other, e.to_string())
+    )
 }

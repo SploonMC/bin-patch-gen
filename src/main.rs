@@ -1,13 +1,15 @@
 use bin_patch_gen::build_tools::{
     download_buildtools, find_file, run_buildtools, VANILLA_JAR_REGEX,
 };
+use bin_patch_gen::config::Config;
 use bin_patch_gen::jar::extract_jar;
 use bin_patch_gen::util::dir::create_temp_dir;
 use bin_patch_gen::util::TimeFormatter;
 use bin_patch_gen::version::fetch_versions;
 use bin_patch_gen::{config, jar, prepare_extraction_path, write_patch, MinecraftVersion, JAR_VERSIONS_PATH};
 use regex::Regex;
-use std::path::Path;
+use std::fs;
+use std::path::{Path, PathBuf};
 use tracing::info;
 use tracing_subscriber::fmt::format;
 
@@ -19,6 +21,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_timer(TimeFormatter);
 
     tracing_subscriber::fmt().event_format(fmt).init();
+
+    let config_file = PathBuf::from("config.toml");
+    if !fs::exists(&config_file)? {
+        fs::write(config_file, toml::to_string_pretty(&Config::default())?)?;
+        info!("Generated default config file.")
+    }
 
     let config = config::read_config("config.toml")?;
 
