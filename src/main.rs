@@ -9,12 +9,41 @@ use bin_patch_gen::version::{fetch_spigot_version_meta, fetch_versions};
 use bin_patch_gen::{
     config, jar, prepare_extraction_path, write_patch, MinecraftVersion, JAR_VERSIONS_PATH,
 };
+use bzip2::read::BzDecoder;
+use clap::{command, Parser, Subcommand};
 use regex::Regex;
 use std::env::current_dir;
-use std::fs;
+use std::fs::{self, File};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use tracing::info;
 use tracing_subscriber::fmt::format;
+
+#[derive(Parser)]
+#[command(about, long_about = None)]
+/// The binary patch generator for Sploon.
+struct Cli {
+    /// The version to generate for. If not specified, it will generate patches for
+    /// all versions of Spigot.
+    #[arg(short, long, value_name = "version")]
+    pub version: Option<String>,
+
+    #[command(subcommand)]
+    pub command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Patches a file.
+    Patch {
+        /// The old file.
+        old: PathBuf,
+        /// The new file, patched.
+        new: PathBuf,
+        /// The bsdiff patch file, compressed with bzip2.
+        patch: PathBuf,
+    },
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,6 +54,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing_subscriber::fmt().event_format(fmt).init();
 
+    let cli = Cli::parse();
+
+    if let Some(Commands::Patch { old, new, patch }) = cli.command {
+        let patch_file = File::open(patch)?;
+        let mut old_file = File::open(old)?;
+        let mut new_file = File::create(new)?;
+
+        let mut old_buf = vec![];
+        let mut new_buf = vec![];
+
+        old_file.read_to_end(&mut old_buf)?;
+
+        let mut decompressor = BzDecoder::new(patch_file);
+
+        info!("Patching...");
+        bsdiff::patch(&old_buf, &mut decompressor, &mut new_buf)?;
+
+        new_file.write_all(&new_buf)?;
+        info!("Patched!");
+
+        return Ok(());
+    }
+
+    let versions = if let Some(version) = cli.version {
+        vec![version]
+    } else {
+        fetch_versions().await
+    };
+
+    run(versions).await
+}
+
+async fn run(versions: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     let config_file = PathBuf::from("config.toml");
     if !fs::exists(&config_file)? {
         fs::write(config_file, toml::to_string_pretty(&Config::default())?)?;
@@ -32,9 +94,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let config = config::read_config("config.toml")?;
-
-    info!("Fetching versions...");
-    let versions = fetch_versions().await;
 
     info!("Releases found: {versions:?}");
 
@@ -146,7 +205,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("Diff generated!");
 
         let patched_meta = PatchedVersionMeta {
-            patch_file: patch_file.file_name().unwrap().to_string_lossy().into_owned(),
+            patch_file: patch_file
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned(),
             commit_hashes: remote_meta.refs,
             patch_hash: sha1(patch_file)?,
             patched_jar_hash: sha1(spigot_jar)?,
