@@ -22,7 +22,7 @@ impl FormatTime for TimeFormatter {
 pub fn sha1<P: AsRef<Path>>(path: P) -> io::Result<String> {
     let mut bytes = vec![];
     let mut file = File::open(path)?;
-    file.read_exact(&mut bytes)?;
+    file.read_to_end(&mut bytes)?;
 
     let mut hasher = Sha1::new();
     hasher.update(bytes);
