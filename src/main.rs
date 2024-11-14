@@ -146,7 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("Diff generated!");
 
         let patched_meta = PatchedVersionMeta {
-            patch_file: patch_file.to_str().unwrap().to_string(),
+            patch_file: patch_file.file_name().unwrap().to_string_lossy().into_owned(),
             commit_hashes: remote_meta.refs,
             patch_hash: sha1(patch_file)?,
             patched_jar_hash: sha1(spigot_jar)?,
