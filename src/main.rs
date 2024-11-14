@@ -28,6 +28,10 @@ struct Cli {
     #[arg(short, long, value_name = "version")]
     pub version: Option<String>,
 
+    /// Whether we should clean the run directory.
+    #[arg(short, long, value_name = "clean")]
+    pub clean: bool,
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
@@ -83,10 +87,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         fetch_versions().await
     };
 
-    run(versions).await
+    let run_dir = if current_dir()?.ends_with("run") {
+        current_dir()?
+    } else {
+        current_dir()?.join("run")
+    };
+
+    if cli.clean {
+        info!("Cleaning run directory");
+        fs::remove_dir_all(&run_dir)?;
+        fs::create_dir_all(&run_dir)?;
+    }
+
+    run(versions, run_dir).await
 }
 
-async fn run(versions: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+async fn run(versions: Vec<String>, run_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     let config_file = PathBuf::from("config.toml");
     if !fs::exists(&config_file)? {
         fs::write(config_file, toml::to_string_pretty(&Config::default())?)?;
@@ -105,12 +121,6 @@ async fn run(versions: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     info!("Downloaded BuildTools successfully!");
 
     let vanilla_jar_regex = Regex::new(VANILLA_JAR_REGEX)?;
-
-    let run_dir = if current_dir()?.ends_with("run") {
-        current_dir()?
-    } else {
-        current_dir()?.join("run")
-    };
 
     if !run_dir.exists() {
         fs::create_dir_all(&run_dir)?;
