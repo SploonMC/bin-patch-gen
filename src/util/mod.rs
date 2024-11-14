@@ -1,6 +1,11 @@
 //! Module containing utilities.
 
+use std::fs::File;
+use std::io::{self, Read};
+use std::path::Path;
+
 use chrono::Local;
+use sha1::{Digest, Sha1};
 use tracing_subscriber::fmt::format::Writer;
 use tracing_subscriber::fmt::time::FormatTime;
 
@@ -12,4 +17,15 @@ impl FormatTime for TimeFormatter {
         let date = Local::now();
         write!(w, "{}", date.format("%H:%M:%S"))
     }
+}
+
+pub fn sha1<P: AsRef<Path>>(path: P) -> io::Result<String> {
+    let mut bytes = vec![];
+    let mut file = File::open(path)?;
+    file.read_exact(&mut bytes)?;
+
+    let mut hasher = Sha1::new();
+    hasher.update(bytes);
+
+    Ok(hex::encode(hasher.finalize()))
 }

@@ -1,13 +1,16 @@
 use bin_patch_gen::build_tools::{
     download_buildtools, find_file, run_buildtools, VANILLA_JAR_REGEX,
 };
-use bin_patch_gen::config::Config;
+use bin_patch_gen::config::{Config, PatchedVersionMeta};
 use bin_patch_gen::jar::extract_jar;
 use bin_patch_gen::util::dir::create_temp_dir;
-use bin_patch_gen::util::TimeFormatter;
-use bin_patch_gen::version::fetch_versions;
-use bin_patch_gen::{config, jar, prepare_extraction_path, write_patch, MinecraftVersion, JAR_VERSIONS_PATH};
+use bin_patch_gen::util::{sha1, TimeFormatter};
+use bin_patch_gen::version::{fetch_spigot_version_meta, fetch_versions};
+use bin_patch_gen::{
+    config, jar, prepare_extraction_path, write_patch, MinecraftVersion, JAR_VERSIONS_PATH,
+};
 use regex::Regex;
+use std::env::current_dir;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tracing::info;
@@ -44,6 +47,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let vanilla_jar_regex = Regex::new(VANILLA_JAR_REGEX)?;
 
+    let run_dir = if current_dir()?.ends_with("run") {
+        current_dir()?
+    } else {
+        current_dir()?.join("run")
+    };
+
+    if !run_dir.exists() {
+        fs::create_dir_all(&run_dir)?;
+    }
+
     for version in versions {
         info!("Building Spigot for version {}...", version);
         let version_path = temp_dir.join(Path::new(&*version));
@@ -52,6 +65,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mc_version = MinecraftVersion::of(version.clone());
         let java_home = config.java_home(mc_version.get_java_version());
+        let remote_meta = fetch_spigot_version_meta(version.clone()).await?;
+
+        let version_file = &run_dir.join(format!("{version}.json"));
+        if version_file.exists() {
+            let patched_meta = PatchedVersionMeta::read(version_file)?;
+
+            if remote_meta.refs == patched_meta.commit_hashes {
+                info!("Already built version {version}, skipping");
+                continue;
+            }
+        }
 
         let result = run_buildtools(
             java_home,
@@ -115,9 +139,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             result
         };
 
+        let patch_file = &run_dir.join(format!("{version}.patch"));
+
         info!("Generating diff...");
-        write_patch(vanilla_jar, spigot_jar, "bsdiff.patch")?;
+        write_patch(&vanilla_jar, &spigot_jar, patch_file)?;
         info!("Diff generated!");
+
+        let patched_meta = PatchedVersionMeta {
+            patch_file: patch_file.to_str().unwrap().to_string(),
+            commit_hashes: remote_meta.refs,
+            patch_hash: sha1(patch_file)?,
+            patched_jar_hash: sha1(spigot_jar)?,
+        };
+
+        patched_meta.write(version_file)?;
+        info!("Wrote version metadata file!");
     }
 
     Ok(())

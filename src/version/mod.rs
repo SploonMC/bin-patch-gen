@@ -1,10 +1,11 @@
 //! Fetches Minecraft versions from SpigotMC.
 
-mod schema;
+pub mod schema;
 
-use crate::version::schema::{Version, VersionMeta, VersionsResponse};
+use crate::version::schema::piston::{PistonVersion, PistonVersionMeta, PistonVersionsResponse};
 use crate::{download_url, fetch_url, get_url, Reqwsult};
 use regex::Regex;
+use schema::spigot::SpigotVersionMeta;
 use scraper::{Html, Selector};
 use std::path::Path;
 use tracing::warn;
@@ -55,14 +56,14 @@ pub async fn fetch_versions() -> Vec<String> {
     }))
 }
 
-pub async fn fetch_piston_meta() -> Reqwsult<VersionsResponse> {
+pub async fn fetch_piston_meta() -> Reqwsult<PistonVersionsResponse> {
     let text = get_url(PISTON_META_URL).await?;
     Ok(serde_json::from_str(&text).unwrap_or_else(|err| {
         panic!("failed deserializing piston meta: {err:#?}")
     }))
 }
 
-pub async fn fetch_version_meta(versions: VersionsResponse, version: String) -> Reqwsult<VersionMeta> {
+pub async fn fetch_piston_version_meta(versions: PistonVersionsResponse, version: String) -> Reqwsult<PistonVersionMeta> {
     let version = versions
         .versions
         .iter()
@@ -84,6 +85,16 @@ pub async fn fetch_version_meta(versions: VersionsResponse, version: String) -> 
     )
 }
 
-pub async fn download_version<P: AsRef<Path>>(version: Version, path: P) -> Reqwsult<()> {
+pub async fn download_version<P: AsRef<Path>>(version: PistonVersion, path: P) -> Reqwsult<()> {
     download_url(version.url, path).await
+}
+
+pub async fn fetch_spigot_version_meta(version: String) -> Reqwsult<SpigotVersionMeta> {
+    let url = format!("{VERSIONS_URL}/{version}.json");
+
+    Ok(
+        serde_json::from_str(&(get_url(url).await?)).unwrap_or_else(|err| {
+            panic!("failed deserializing version meta: {err:#?}")
+        })
+    )
 }

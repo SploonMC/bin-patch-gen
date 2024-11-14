@@ -2,6 +2,8 @@ use std::{fs, io, path::{Path, PathBuf}};
 
 use proc_macros::serial_snake;
 
+use crate::version::schema::spigot::SpigotVersionRefs;
+
 #[serial_snake]
 #[derive(Default)]
 pub struct Config {
@@ -28,4 +30,26 @@ pub fn read_config<P: AsRef<Path>>(path: P) -> io::Result<Config> {
     toml::from_str::<Config>(&content).map_err(
         |e| io::Error::new(io::ErrorKind::Other, e.to_string())
     )
+}
+
+#[serial_snake]
+pub struct PatchedVersionMeta {
+    pub patch_file: String,
+    pub commit_hashes: SpigotVersionRefs,
+    pub patch_hash: String,
+    pub patched_jar_hash: String
+}
+
+impl PatchedVersionMeta {
+    pub fn read<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        let content = fs::read_to_string(path)?;
+
+        serde_json::from_str(&content).map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
+    }
+
+    pub fn write<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
+        let json = serde_json::to_string_pretty(self)?;
+
+        fs::write(path, json)
+    }
 }

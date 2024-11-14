@@ -26,3 +26,16 @@ pub fn serial_snake(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     TokenStream::from(expanded)
 }
+
+#[proc_macro_attribute]
+pub fn serial_pascal(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+
+    let expanded = quote! {
+        #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+        #[serde(rename_all = "PascalCase")]
+        #input
+    };
+
+    TokenStream::from(expanded)
+}
