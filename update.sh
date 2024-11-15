@@ -17,6 +17,8 @@ if docker container inspect sploon-bin-patch-gen > /dev/null 2>&1; then
     # git shit
     cd work || exit 1
     [[ ! -d ".git" ]] && git init .
+    git remote remove origin
+    git remote add origin https://github.com/SploonMC/patches.git
     git add .
     git commit -am "automated update"
     git push -u origin master
