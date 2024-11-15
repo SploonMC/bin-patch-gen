@@ -6,11 +6,9 @@ use bin_patch_gen::jar::extract_jar;
 use bin_patch_gen::util::dir::create_temp_dir;
 use bin_patch_gen::util::{sha1, TimeFormatter};
 use bin_patch_gen::version::{fetch_spigot_version_meta, fetch_versions};
-use bin_patch_gen::{
-    config, jar, prepare_extraction_path, write_patch, MinecraftVersion, JAR_VERSIONS_PATH,
-};
-use bzip2::read::BzDecoder;
+use bin_patch_gen::{config, jar, prepare_extraction_path, write_patch, MinecraftVersion, JAR_VERSIONS_PATH, MINECRAFT_VERSION_REGEX, SPIGOT_SERVER_JAR_REGEX};
 use clap::{command, Parser, Subcommand};
+use qbsdiff::Bspatch;
 use regex::Regex;
 use std::env::current_dir;
 use std::fs::{self, File};
@@ -31,6 +29,9 @@ struct Cli {
     /// Whether we should clean the run directory.
     #[arg(short, long, value_name = "clean")]
     pub clean: bool,
+
+    #[arg(short = 'f', long = "force", value_name = "force")]
+    pub force_build: bool,
 
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -61,21 +62,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     if let Some(Commands::Patch { old, new, patch }) = cli.command {
-        let patch_file = File::open(patch)?;
-        let mut old_file = File::open(old)?;
-        let mut new_file = File::create(new)?;
-
-        let mut old_buf = vec![];
-        let mut new_buf = vec![];
-
-        old_file.read_to_end(&mut old_buf)?;
-
-        let mut decompressor = BzDecoder::new(patch_file);
+        let mut patch_file = File::open(patch)?;
+        let mut patch_buf = vec![];
+        patch_file.read_to_end(&mut patch_buf)?;
 
         info!("Patching...");
-        bsdiff::patch(&old_buf, &mut decompressor, &mut new_buf)?;
+
+        let mut old_file = File::open(old)?;
+        let mut old_buf = vec![];
+        old_file.read_to_end(&mut old_buf)?;
+
+        let mut new_file = File::create(new)?;
+        let mut new_buf = vec![];
+
+        let patcher = Bspatch::new(&patch_buf)?;
+        patcher.apply(&old_buf, &mut new_buf)?;
 
         new_file.write_all(&new_buf)?;
+        
         info!("Patched!");
 
         return Ok(());
@@ -99,10 +103,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         fs::create_dir_all(&run_dir)?;
     }
 
-    run(versions, run_dir).await
+    run(versions, run_dir, cli.force_build).await
 }
 
-async fn run(versions: Vec<String>, run_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+async fn run(versions: Vec<String>, run_dir: PathBuf, force_build: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let using_env = [8, 16, 17, 21]
+        .iter()
+        .all(|ver| std::env::var(format!("JAVA_HOME_{ver}")).is_ok());
+
+    if using_env {
+        info!("Using environment variables for java home instead of configuration file.");
+    }
+
     let config_file = PathBuf::from("config.toml");
     if !fs::exists(&config_file)? {
         fs::write(config_file, toml::to_string_pretty(&Config::default())?)?;
@@ -121,6 +133,8 @@ async fn run(versions: Vec<String>, run_dir: PathBuf) -> Result<(), Box<dyn std:
     info!("Downloaded BuildTools successfully!");
 
     let vanilla_jar_regex = Regex::new(VANILLA_JAR_REGEX)?;
+    let minecraft_version_regex = Regex::new(MINECRAFT_VERSION_REGEX)?;
+    let spigot_jar_regex = Regex::new(SPIGOT_SERVER_JAR_REGEX)?;
 
     if !run_dir.exists() {
         fs::create_dir_all(&run_dir)?;
@@ -130,17 +144,24 @@ async fn run(versions: Vec<String>, run_dir: PathBuf) -> Result<(), Box<dyn std:
         info!("Building Spigot for version {}...", version);
         let version_path = temp_dir.join(Path::new(&*version));
         let work_path = version_path.join(Path::new("work"));
-        let regex = vanilla_jar_regex.clone();
+        let vanilla_jar_regex = vanilla_jar_regex.clone();
+        let minecraft_version_regex = minecraft_version_regex.clone();
+        let spigot_jar_regex = spigot_jar_regex.clone();
 
         let mc_version = MinecraftVersion::of(version.clone());
-        let java_home = config.java_home(mc_version.get_java_version());
+        let java_home = if !using_env {
+            config.java_home(mc_version.get_java_version())
+        } else {
+            PathBuf::from(std::env::var(format!("JAVA_HOME_{}", mc_version.get_java_version())).unwrap())
+        };
+
         let remote_meta = fetch_spigot_version_meta(version.clone()).await?;
 
         let version_file = &run_dir.join(format!("{version}.json"));
         if version_file.exists() {
             let patched_meta = PatchedVersionMeta::read(version_file)?;
 
-            if remote_meta.refs == patched_meta.commit_hashes {
+            if remote_meta.refs == patched_meta.commit_hashes && !force_build {
                 info!("Already built version {version}, skipping");
                 continue;
             }
@@ -152,8 +173,8 @@ async fn run(versions: Vec<String>, run_dir: PathBuf) -> Result<(), Box<dyn std:
             version_path.clone(),
             &version,
         )
-        .await?;
-        let vanilla_jar = find_file(&regex, work_path).await?;
+            .await?;
+        let vanilla_jar = find_file(&vanilla_jar_regex, work_path).await?;
 
         info!(
             "BuildTools finished building Spigot for version {}!",
@@ -175,13 +196,22 @@ async fn run(versions: Vec<String>, run_dir: PathBuf) -> Result<(), Box<dyn std:
             extract_jar(&vanilla_jar, &vanilla_jar_extraction_path).unwrap();
             info!("Successfully extracted vanilla jar!");
 
-            let versions_folder = find_file(
+            let extraction_path = vanilla_jar_extraction_path.join(Path::new(JAR_VERSIONS_PATH));
+            let versions_dir = find_file(
                 &vanilla_jar_regex,
-                vanilla_jar_extraction_path.join(Path::new(JAR_VERSIONS_PATH)),
+                &extraction_path,
             )
-            .await
-            .unwrap();
-            find_file(&regex, versions_folder).await.unwrap()
+                .await
+                .unwrap_or(extraction_path);
+
+            let dir_with_jar = find_file(
+                &minecraft_version_regex,
+                versions_dir,
+            )
+                .await
+                .unwrap();
+
+            find_file(&vanilla_jar_regex, dir_with_jar).await.unwrap()
         } else {
             info!("Vanilla jar does not need extraction");
             vanilla_jar
@@ -198,11 +228,11 @@ async fn run(versions: Vec<String>, run_dir: PathBuf) -> Result<(), Box<dyn std:
             info!("Successfully extracted spigot jar!");
 
             find_file(
-                &regex,
+                &spigot_jar_regex,
                 spigot_jar_extraction_path.join(Path::new(JAR_VERSIONS_PATH)),
             )
-            .await
-            .unwrap()
+                .await
+                .unwrap()
         } else {
             info!("Spigot jar does not need extraction");
             result

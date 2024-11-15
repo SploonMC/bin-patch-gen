@@ -9,7 +9,7 @@ use regex::Regex;
 use crate::util::dir;
 
 /// The URL of the latest BuildTools JAR build from SpigotMC's Jenkins.
-pub const VANILLA_JAR_REGEX: &str = r"minecraft_server.(1\.\d{1,2}(?:\.\d{1,2})?)\.jar";
+pub const VANILLA_JAR_REGEX: &str = r"(minecraft_)?server.(1\.\d{1,2}(?:\.\d{1,2})?)\.jar";
 const BUILDTOOLS_URL: &str = "https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar";
 const SPIGOT_JAR_REGEX: &str = r"spigot-(1\.\d{1,2}(?:\.\d{1,2})?)\.jar";
 

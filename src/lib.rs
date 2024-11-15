@@ -1,12 +1,11 @@
 use crate::util::dir;
-use bzip2::write::BzEncoder;
-use bzip2::Compression;
 use futures_util::StreamExt;
+use qbsdiff::Bsdiff;
 use reqwest::IntoUrl;
 use scraper::Html;
 use std::fmt::Display;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{Cursor, Read, Write};
 use std::path::Path;
 use std::{fs, io};
 
@@ -89,7 +88,7 @@ pub async fn fetch_url<U: IntoUrl>(url: U) -> Reqwsult<Html> {
 pub fn write_patch<P, P1>(vanilla_jar: P, spigot_jar: P, out: P1) -> io::Result<()>
 where
     P: AsRef<Path>,
-    P1: AsRef<Path>
+    P1: AsRef<Path>,
 {
     let mut vanilla = File::open(vanilla_jar)?;
     let mut vanilla_bytes = Vec::new();
@@ -100,14 +99,12 @@ where
     spigot.read_to_end(&mut spigot_bytes)?;
 
     let mut diff = Vec::new();
-    bsdiff::diff(&vanilla_bytes, &spigot_bytes, &mut diff)?;
 
-    let mut encoder = BzEncoder::new(Vec::new(), Compression::best());
-    encoder.write_all(&diff)?;
+    Bsdiff::new(&vanilla_bytes, &spigot_bytes)
+        .compression_level(9)
+        .compare(Cursor::new(&mut diff))?;
 
-    let compressed = encoder.finish()?;
-
-    fs::write(out, compressed)
+    fs::write(out, diff)
 }
 
 pub struct MinecraftVersion(u8, u8, u8);
@@ -129,15 +126,15 @@ impl MinecraftVersion {
 
     pub fn get_java_version(&self) -> u8 {
         if self.1 < 17 {
-            return 8
+            return 8;
         }
 
         if self.1 == 17 {
-            return 16
+            return 16;
         }
 
         if self.1 < 20 && self.2 < 5 {
-            return 17
+            return 17;
         }
 
         21

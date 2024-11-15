@@ -1,0 +1,8 @@
+services:
+  gen:
+    container_name: sploon-bin-patch-gen
+    build: .
+    volumes:
+      - ./config.toml:/app/config.toml
+      - /tmp/bpg:/tmp/bin-patch-gen
+    mem_limit: 2G
