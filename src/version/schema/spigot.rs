@@ -5,7 +5,6 @@ pub struct SpigotVersionMeta {
     pub name: String,
     pub description: String,
     pub refs: SpigotVersionRefs,
-    pub tools_version: u16,
 }
 
 #[serial_pascal]
