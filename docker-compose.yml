@@ -4,5 +4,5 @@ services:
     build: .
     volumes:
       - ./config.toml:/app/config.toml
-      - /tmp/bpg:/tmp/bin-patch-gen
+      - ./work:/app/run
     mem_limit: 2G
