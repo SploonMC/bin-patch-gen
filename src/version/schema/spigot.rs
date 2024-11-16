@@ -14,3 +14,8 @@ pub struct SpigotVersionRefs {
     pub craft_bukkit: String,
     pub spigot: String
 }
+
+#[serial]
+pub struct SpigotBuildData {
+    pub server_url: String
+}

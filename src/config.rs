@@ -38,7 +38,8 @@ pub struct PatchedVersionMeta {
     pub commit_hashes: SpigotVersionRefs,
     pub patch_hash: String,
     pub vanilla_jar_hash: String,
-    pub patched_jar_hash: String
+    pub patched_jar_hash: String,
+    pub vanilla_download_url: String
 }
 
 impl PatchedVersionMeta {
