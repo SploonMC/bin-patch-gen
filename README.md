@@ -1,10 +1,8 @@
 # bin-patch-gen 
 
-**bin-patch-gen** is a tool designed to generate binary patches for all Minecraft versions supported by Spigot.
+**bin-patch-gen** is a tool designed to generate SpigotMC binary patches for all SpigotMC-supported Minecraft versions.
 
 ## Usage
-
-### Manual Usage
 
 #### Default Mode
 ```bash
@@ -47,7 +45,8 @@ This mode applies a patch to transform one file into another.
 - `newfile`: The output file resulting from applying the patch.  
 
 ### Docker
-Insert documentation here.
+There is a provided `docker-compose.yml` file which you can use. Our CI runs a cronjob with the provided `update.sh` script, which
+just runs the docker container and pushes the patches to Git.
 
 ## Building
 To build this project, you need Cargo and a recent version of Rust from the nightly channel. Building is straightforward, like any other Rust program:
@@ -56,7 +55,14 @@ cargo build
 ```
 
 ## Contributing
-Insert documentation here.
+Any pull requests and issues are welcome.
+
+All contributions should be:
+- made to the dev branch.
+- formatted using rustfmt.
+- tested.
+
+CI Contributions should only be done by maintainers.
 
 ## License
-Insert documentation here.
+This project is licensed under the MIT license.
