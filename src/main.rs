@@ -6,7 +6,7 @@ use bin_patch_gen::jar::extract_jar;
 use bin_patch_gen::util::dir::create_temp_dir;
 use bin_patch_gen::util::{sha1, TimeFormatter};
 use bin_patch_gen::version::{fetch_spigot_version_meta, fetch_versions};
-use bin_patch_gen::{config, jar, prepare_extraction_path, write_patch, MinecraftVersion, JAR_VERSIONS_PATH, MINECRAFT_VERSION_REGEX, SPIGOT_SERVER_JAR_REGEX};
+use bin_patch_gen::{config, jar, prepare_extraction_path, write_patch, MinecraftVersion, JAR_VERSIONS_PATH, SPIGOT_SERVER_JAR_REGEX};
 use clap::{command, Parser, Subcommand};
 use qbsdiff::Bspatch;
 use regex::Regex;
@@ -133,7 +133,6 @@ async fn run(versions: Vec<String>, run_dir: PathBuf, force_build: bool) -> Resu
     info!("Downloaded BuildTools successfully!");
 
     let vanilla_jar_regex = Regex::new(VANILLA_JAR_REGEX)?;
-    let minecraft_version_regex = Regex::new(MINECRAFT_VERSION_REGEX)?;
     let spigot_jar_regex = Regex::new(SPIGOT_SERVER_JAR_REGEX)?;
 
     if !run_dir.exists() {
@@ -145,7 +144,6 @@ async fn run(versions: Vec<String>, run_dir: PathBuf, force_build: bool) -> Resu
         let version_path = temp_dir.join(Path::new(&*version));
         let work_path = version_path.join(Path::new("work"));
         let vanilla_jar_regex = vanilla_jar_regex.clone();
-        let minecraft_version_regex = minecraft_version_regex.clone();
         let spigot_jar_regex = spigot_jar_regex.clone();
 
         let mc_version = MinecraftVersion::of(version.clone());
@@ -211,7 +209,7 @@ async fn run(versions: Vec<String>, run_dir: PathBuf, force_build: bool) -> Resu
             } else {
                 let file_content = file_content.unwrap();
                 let split_content = file_content
-                    .split("    ")
+                    .split("\t")
                     .collect::<Vec<&str>>();
 
                 let jar_path_relative = split_content
