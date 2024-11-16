@@ -23,6 +23,20 @@ For example:
 ```
 Generates a patch for version 1.21.3.
 
+#### Force Mode
+```bash
+./bin-patch-gen --force
+```
+Builds all versions regardless of whether they have already been built.
+
+#### Clean Mode
+```bash
+./bin-patch-gen --clean
+```
+Removes all contents of the `run` directory. If the current working directory is named `run`, it will be cleared. This ensures a clean environment before starting the process.
+
+**Note**: This may result in the deletion of important files, so use this option with caution.
+
 #### Patch Mode
 ```bash
 ./bin-patch-gen patch oldfile newfile patchfile
