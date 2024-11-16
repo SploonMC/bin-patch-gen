@@ -5,6 +5,7 @@ use bin_patch_gen::config::{Config, PatchedVersionMeta};
 use bin_patch_gen::jar::extract_jar;
 use bin_patch_gen::util::dir::create_temp_dir;
 use bin_patch_gen::util::{sha1, TimeFormatter};
+use bin_patch_gen::version::schema::spigot::SpigotBuildData;
 use bin_patch_gen::version::{fetch_spigot_version_meta, fetch_versions};
 use bin_patch_gen::{config, jar, prepare_extraction_path, write_patch, MinecraftVersion, JAR_VERSIONS_PATH, SPIGOT_SERVER_JAR_REGEX};
 use clap::{command, Parser, Subcommand};
@@ -238,11 +239,11 @@ async fn run(versions: Vec<String>, run_dir: PathBuf, force_build: bool) -> Resu
                 spigot_jar_extraction_path.join(Path::new(JAR_VERSIONS_PATH)),
             )
                 .await;
-            if file.is_err() {
+            if let Ok(file) = file {
+                file
+            } else {
                 warn!("Failed to read versions.list. Will use {result:?} instead.");
                 result
-            } else {
-                file.unwrap()
             }
         } else {
             info!("Spigot jar does not need extraction");
@@ -255,6 +256,11 @@ async fn run(versions: Vec<String>, run_dir: PathBuf, force_build: bool) -> Resu
         write_patch(&vanilla_jar, &spigot_jar, patch_file)?;
         info!("Diff generated!");
 
+        info!("Reading BuildData...");
+        let build_data_info = buildtools_path.join("BuildData/info.json");
+        let build_data_info = serde_json::from_str::<SpigotBuildData>(&fs::read_to_string(build_data_info)?)?;
+        info!("Read BuildData!");
+
         let patched_meta = PatchedVersionMeta {
             patch_file: patch_file
                 .file_name()
@@ -265,6 +271,7 @@ async fn run(versions: Vec<String>, run_dir: PathBuf, force_build: bool) -> Resu
             patch_hash: sha1(patch_file)?,
             vanilla_jar_hash: sha1(vanilla_jar)?,
             patched_jar_hash: sha1(spigot_jar)?,
+            vanilla_download_url: build_data_info.server_url
         };
 
         patched_meta.write(version_file)?;
