@@ -12,8 +12,12 @@ if [[ ! -d "work/.git" ]]; then
   chown -R radsteve .
   git init .
   git remote add origin https://github.com/SploonMC/patches.git
-  git pull
+  cd ..
 fi
+
+cd work
+git pull origin master
+cd ..
 
 # check if docker container exists
 if docker container inspect sploon-bin-patch-gen > /dev/null 2>&1; then
