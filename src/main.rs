@@ -257,7 +257,7 @@ async fn run(versions: Vec<String>, run_dir: PathBuf, force_build: bool) -> Resu
         info!("Diff generated!");
 
         info!("Reading BuildData...");
-        let build_data_info = buildtools_path.join("BuildData/info.json");
+        let build_data_info = version_path.join("BuildData/info.json");
         let build_data_info = serde_json::from_str::<SpigotBuildData>(&fs::read_to_string(build_data_info)?)?;
         info!("Read BuildData!");
 
