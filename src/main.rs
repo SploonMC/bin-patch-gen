@@ -14,7 +14,7 @@ use std::env::current_dir;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use tracing::info;
+use tracing::{info, warn};
 use tracing_subscriber::fmt::format;
 
 #[derive(Parser)]
@@ -159,11 +159,16 @@ async fn run(versions: Vec<String>, run_dir: PathBuf, force_build: bool) -> Resu
 
         let version_file = &run_dir.join(format!("{version}.json"));
         if version_file.exists() {
-            let patched_meta = PatchedVersionMeta::read(version_file)?;
+            let patched_meta = PatchedVersionMeta::read(version_file);
 
-            if remote_meta.refs == patched_meta.commit_hashes && !force_build {
-                info!("Already built version {version}, skipping");
-                continue;
+            if patched_meta.is_err() {
+                warn!("{version} metadata is invalid or could not be read! Rebuilding...");
+            } else {
+                let patched_meta = patched_meta.unwrap();
+                if remote_meta.refs == patched_meta.commit_hashes && !force_build {
+                    info!("Already built version {version}, skipping");
+                    continue;
+                }
             }
         }
 
@@ -197,21 +202,24 @@ async fn run(versions: Vec<String>, run_dir: PathBuf, force_build: bool) -> Resu
             info!("Successfully extracted vanilla jar!");
 
             let extraction_path = vanilla_jar_extraction_path.join(Path::new(JAR_VERSIONS_PATH));
-            let versions_dir = find_file(
-                &vanilla_jar_regex,
-                &extraction_path,
-            )
-                .await
-                .unwrap_or(extraction_path);
+            let versions_file_path = vanilla_jar_extraction_path.join("META-INF").join("versions.list");
+            let file_content = fs::read_to_string(&versions_file_path);
 
-            let dir_with_jar = find_file(
-                &minecraft_version_regex,
-                versions_dir,
-            )
-                .await
-                .unwrap();
+            if file_content.is_err() {
+                warn!("Failed to read versions.list. Will use {vanilla_jar:?} instead.");
+                vanilla_jar
+            } else {
+                let file_content = file_content.unwrap();
+                let split_content = file_content
+                    .split("    ")
+                    .collect::<Vec<&str>>();
 
-            find_file(&vanilla_jar_regex, dir_with_jar).await.unwrap()
+                let jar_path_relative = split_content
+                    .get(2)
+                    .unwrap();
+
+                extraction_path.join(jar_path_relative)
+            }
         } else {
             info!("Vanilla jar does not need extraction");
             vanilla_jar
@@ -227,12 +235,17 @@ async fn run(versions: Vec<String>, run_dir: PathBuf, force_build: bool) -> Resu
             extract_jar(&result, &spigot_jar_extraction_path).unwrap();
             info!("Successfully extracted spigot jar!");
 
-            find_file(
+            let file = find_file(
                 &spigot_jar_regex,
                 spigot_jar_extraction_path.join(Path::new(JAR_VERSIONS_PATH)),
             )
-                .await
-                .unwrap()
+                .await;
+            if file.is_err() {
+                warn!("Failed to read versions.list. Will use {result:?} instead.");
+                result
+            } else {
+                file.unwrap()
+            }
         } else {
             info!("Spigot jar does not need extraction");
             result
@@ -252,6 +265,7 @@ async fn run(versions: Vec<String>, run_dir: PathBuf, force_build: bool) -> Resu
                 .into_owned(),
             commit_hashes: remote_meta.refs,
             patch_hash: sha1(patch_file)?,
+            vanilla_jar_hash: sha1(vanilla_jar)?,
             patched_jar_hash: sha1(spigot_jar)?,
         };
 
