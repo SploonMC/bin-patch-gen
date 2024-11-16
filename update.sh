@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd /srv/sploon-bpg
+
 # update repo and discard changes
 git stash
 git checkout release
