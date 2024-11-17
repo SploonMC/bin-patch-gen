@@ -3,7 +3,7 @@ use build_tools::{download_buildtools, find_file, run_buildtools, VANILLA_JAR_RE
 use config::{Config, PatchedVersionMeta};
 use futures_util::StreamExt;
 use jar::extract_jar;
-use qbsdiff::Bsdiff;
+use qbsdiff::{Bsdiff, Bspatch};
 use regex::Regex;
 use reqwest::IntoUrl;
 use scraper::Html;
@@ -20,6 +20,8 @@ use version::schema::spigot::SpigotBuildData;
 pub mod build_tools;
 pub mod config;
 pub mod jar;
+#[cfg(test)]
+pub mod tests;
 pub mod util;
 pub mod version;
 
@@ -325,6 +327,30 @@ pub async fn run(
         patched_meta.write(version_file)?;
         info!("Wrote version metadata file!");
     }
+
+    Ok(())
+}
+
+pub async fn patch<P: AsRef<Path>>(old: P, new: P, patch: P) -> io::Result<()> {
+    let mut patch_file = File::open(patch)?;
+    let mut patch_buf = vec![];
+    patch_file.read_to_end(&mut patch_buf)?;
+
+    info!("Patching...");
+
+    let mut old_file = File::open(old)?;
+    let mut old_buf = vec![];
+    old_file.read_to_end(&mut old_buf)?;
+
+    let mut new_file = File::create(new)?;
+    let mut new_buf = vec![];
+
+    let patcher = Bspatch::new(&patch_buf)?;
+    patcher.apply(&old_buf, &mut new_buf)?;
+
+    new_file.write_all(&new_buf)?;
+
+    info!("Patched!");
 
     Ok(())
 }

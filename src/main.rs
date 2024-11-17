@@ -2,10 +2,8 @@ use bin_patch_gen::run;
 use bin_patch_gen::util::TimeFormatter;
 use bin_patch_gen::version::fetch_versions;
 use clap::{command, Parser, Subcommand};
-use qbsdiff::Bspatch;
 use std::env::current_dir;
-use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::fs;
 use std::path::PathBuf;
 use tracing::info;
 use tracing_subscriber::fmt::format;
@@ -55,25 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     if let Some(Commands::Patch { old, new, patch }) = cli.command {
-        let mut patch_file = File::open(patch)?;
-        let mut patch_buf = vec![];
-        patch_file.read_to_end(&mut patch_buf)?;
-
-        info!("Patching...");
-
-        let mut old_file = File::open(old)?;
-        let mut old_buf = vec![];
-        old_file.read_to_end(&mut old_buf)?;
-
-        let mut new_file = File::create(new)?;
-        let mut new_buf = vec![];
-
-        let patcher = Bspatch::new(&patch_buf)?;
-        patcher.apply(&old_buf, &mut new_buf)?;
-
-        new_file.write_all(&new_buf)?;
-
-        info!("Patched!");
+        bin_patch_gen::patch(old, new, patch).await?;
 
         return Ok(());
     }
