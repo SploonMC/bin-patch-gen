@@ -65,7 +65,7 @@ pub async fn clear_directory<P: AsRef<Path>>(path: P) -> io::Result<()> {
 fn clean_temp_dirs() {
     unsafe {
         for dir in TEMP_DIRS.clone() {
-            fs::remove_dir_all(dir).unwrap();
+            let _ = fs::remove_dir_all(dir);
         }
     }
 }
