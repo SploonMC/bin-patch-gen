@@ -1,19 +1,27 @@
-use crate::util::dir;
+use crate::util::{dir, sha1};
+use build_tools::{download_buildtools, find_file, run_buildtools, VANILLA_JAR_REGEX};
+use config::{Config, PatchedVersionMeta};
 use futures_util::StreamExt;
+use jar::extract_jar;
 use qbsdiff::Bsdiff;
+use regex::Regex;
 use reqwest::IntoUrl;
 use scraper::Html;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::{Cursor, Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
+use tracing::{info, warn};
+use util::dir::create_temp_dir;
+use version::fetch_spigot_version_meta;
+use version::schema::spigot::SpigotBuildData;
 
 pub mod build_tools;
+pub mod config;
 pub mod jar;
 pub mod util;
 pub mod version;
-pub mod config;
 
 /// The user agent being used for all HTTP requests.
 pub const USER_AGENT: &str =
@@ -117,7 +125,8 @@ impl Display for MinecraftVersion {
 
 impl MinecraftVersion {
     pub fn of(string: String) -> Self {
-        let numbers = string.split(".")
+        let numbers = string
+            .split(".")
             .map(|string| string.parse::<u8>().unwrap())
             .collect::<Vec<u8>>();
 
@@ -139,4 +148,183 @@ impl MinecraftVersion {
 
         21
     }
+}
+
+pub async fn run(
+    versions: Vec<String>,
+    run_dir: PathBuf,
+    force_build: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let using_env = [8, 16, 17, 21]
+        .iter()
+        .all(|ver| std::env::var(format!("JAVA_HOME_{ver}")).is_ok());
+
+    if using_env {
+        info!("Using environment variables for java home instead of configuration file.");
+    }
+
+    let config_file = run_dir.parent().unwrap().join("config.toml");
+    if !fs::exists(&config_file)? {
+        fs::write(config_file, toml::to_string_pretty(&Config::default())?)?;
+        info!("Generated default config file.")
+    }
+
+    let config = config::read_config("config.toml")?;
+
+    info!("Releases found: {versions:?}");
+
+    info!("Downloading BuildTools...");
+    let temp_dir = create_temp_dir("bin-patch-gen")?;
+
+    let buildtools_path = temp_dir.join("BuildTools.jar");
+    download_buildtools(buildtools_path.clone()).await?;
+    info!("Downloaded BuildTools successfully!");
+
+    let vanilla_jar_regex = Regex::new(VANILLA_JAR_REGEX)?;
+    let spigot_jar_regex = Regex::new(SPIGOT_SERVER_JAR_REGEX)?;
+
+    if !run_dir.exists() {
+        fs::create_dir_all(&run_dir)?;
+    }
+
+    for version in versions {
+        info!("Building Spigot for version {}...", version);
+        let version_path = temp_dir.join(Path::new(&*version));
+        let work_path = version_path.join(Path::new("work"));
+        let vanilla_jar_regex = vanilla_jar_regex.clone();
+        let spigot_jar_regex = spigot_jar_regex.clone();
+
+        let mc_version = MinecraftVersion::of(version.clone());
+        let java_home = if !using_env {
+            config.java_home(mc_version.get_java_version())
+        } else {
+            PathBuf::from(
+                std::env::var(format!("JAVA_HOME_{}", mc_version.get_java_version())).unwrap(),
+            )
+        };
+
+        let remote_meta = fetch_spigot_version_meta(version.clone()).await?;
+
+        let version_file = &run_dir.join(format!("{version}.json"));
+        if version_file.exists() {
+            let patched_meta = PatchedVersionMeta::read(version_file);
+
+            if patched_meta.is_err() {
+                warn!("{version} metadata is invalid or could not be read! Rebuilding...");
+            } else {
+                let patched_meta = patched_meta.unwrap();
+                if remote_meta.refs == patched_meta.commit_hashes && !force_build {
+                    info!("Already built version {version}, skipping");
+                    continue;
+                }
+            }
+        }
+
+        let result = run_buildtools(
+            java_home,
+            buildtools_path.clone(),
+            version_path.clone(),
+            &version,
+        )
+        .await?;
+        let vanilla_jar = find_file(&vanilla_jar_regex, work_path).await?;
+
+        info!(
+            "BuildTools finished building Spigot for version {}!",
+            version
+        );
+        info!("Built jar location: {}", result.to_str().unwrap());
+
+        info!("Checking whether jars need extraction...");
+        let needs_extraction_vanilla = jar::has_dir(&vanilla_jar, JAR_VERSIONS_PATH).unwrap();
+        let needs_extraction_spigot = jar::has_dir(&result, JAR_VERSIONS_PATH).unwrap();
+
+        let vanilla_jar = if needs_extraction_vanilla {
+            info!("Vanilla jar needs extraction");
+            info!("Extracting vanilla jar...");
+            let vanilla_jar_extraction_path = version_path.join(Path::new("vanilla_jar"));
+            prepare_extraction_path(&vanilla_jar_extraction_path)
+                .await
+                .unwrap();
+            extract_jar(&vanilla_jar, &vanilla_jar_extraction_path).unwrap();
+            info!("Successfully extracted vanilla jar!");
+
+            let extraction_path = vanilla_jar_extraction_path.join(Path::new(JAR_VERSIONS_PATH));
+            let versions_file_path = vanilla_jar_extraction_path
+                .join("META-INF")
+                .join("versions.list");
+            let file_content = fs::read_to_string(&versions_file_path);
+
+            if file_content.is_err() {
+                warn!("Failed to read versions.list. Will use {vanilla_jar:?} instead.");
+                vanilla_jar
+            } else {
+                let file_content = file_content.unwrap();
+                let split_content = file_content.split("\t").collect::<Vec<&str>>();
+
+                let jar_path_relative = split_content.get(2).unwrap();
+
+                extraction_path.join(jar_path_relative)
+            }
+        } else {
+            info!("Vanilla jar does not need extraction");
+            vanilla_jar
+        };
+
+        let spigot_jar = if needs_extraction_spigot {
+            info!("Spigot jar needs extraction");
+            info!("Extracting spigot jar...");
+            let spigot_jar_extraction_path = version_path.join(Path::new("spigot_jar"));
+            prepare_extraction_path(&spigot_jar_extraction_path)
+                .await
+                .unwrap();
+            extract_jar(&result, &spigot_jar_extraction_path).unwrap();
+            info!("Successfully extracted spigot jar!");
+
+            let file = find_file(
+                &spigot_jar_regex,
+                spigot_jar_extraction_path.join(Path::new(JAR_VERSIONS_PATH)),
+            )
+            .await;
+            if let Ok(file) = file {
+                file
+            } else {
+                warn!("Failed to read versions.list. Will use {result:?} instead.");
+                result
+            }
+        } else {
+            info!("Spigot jar does not need extraction");
+            result
+        };
+
+        let patch_file = &run_dir.join(format!("{version}.patch"));
+
+        info!("Generating diff...");
+        write_patch(&vanilla_jar, &spigot_jar, patch_file)?;
+        info!("Diff generated!");
+
+        info!("Reading BuildData...");
+        let build_data_info = version_path.join("BuildData/info.json");
+        let build_data_info =
+            serde_json::from_str::<SpigotBuildData>(&fs::read_to_string(build_data_info)?)?;
+        info!("Read BuildData!");
+
+        let patched_meta = PatchedVersionMeta {
+            patch_file: patch_file
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned(),
+            commit_hashes: remote_meta.refs,
+            patch_hash: sha1(patch_file)?,
+            vanilla_jar_hash: sha1(vanilla_jar)?,
+            patched_jar_hash: sha1(spigot_jar)?,
+            vanilla_download_url: build_data_info.server_url,
+        };
+
+        patched_meta.write(version_file)?;
+        info!("Wrote version metadata file!");
+    }
+
+    Ok(())
 }
