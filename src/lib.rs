@@ -37,6 +37,8 @@ pub const SERVER_JAR_REGEX: &str = r"server-(1\.\d{1,2}(?:\.\d{1,2})?)\.jar";
 
 pub const SPIGOT_SERVER_JAR_REGEX: &str = r"spigot-(1\.\d{1,2}(?:\.\d{1,2})?)-R0.1-SNAPSHOT\.jar";
 
+pub const PISTON_DATA_BASE_URL: &str = "https://piston-data.mojang.com/v1/objects";
+
 pub type Reqwsult<T> = Result<T, reqwest::Error>;
 
 pub async fn get_url<U: IntoUrl>(url: U) -> Reqwsult<String> {
@@ -73,7 +75,7 @@ pub async fn download_url<U: IntoUrl, P: AsRef<Path>>(url: U, path: P) -> Reqwsu
     Ok(())
 }
 
-pub async fn prepare_extraction_path(extraction_path: &Path) -> std::io::Result<()> {
+pub async fn prepare_extraction_path(extraction_path: &Path) -> io::Result<()> {
     if !extraction_path.exists() || !extraction_path.is_dir() {
         fs::create_dir_all(extraction_path)?;
     } else {
@@ -305,10 +307,20 @@ pub async fn run(
         write_patch(&vanilla_jar, &spigot_jar, patch_file)?;
         info!("Diff generated!");
 
+        let vanilla_jar_hash = sha1(vanilla_jar)?;
+        
         info!("Reading BuildData...");
         let build_data_info = version_path.join("BuildData/info.json");
-        let build_data_info =
-            serde_json::from_str::<SpigotBuildData>(&fs::read_to_string(build_data_info)?)?;
+        let fallback_vanilla_download_url = format!("{PISTON_DATA_BASE_URL}/{vanilla_jar_hash}/server.jar");
+        
+        let vanilla_download_url = if build_data_info.exists() {
+            match serde_json::from_str::<SpigotBuildData>(&fs::read_to_string(build_data_info)?) {
+                Ok(data) => data.server_url,
+                Err(_) => fallback_vanilla_download_url
+            }
+        } else {
+            fallback_vanilla_download_url
+        };
         info!("Read BuildData!");
 
         let patched_meta = PatchedVersionMeta {
@@ -319,9 +331,9 @@ pub async fn run(
                 .into_owned(),
             commit_hashes: remote_meta.refs,
             patch_hash: sha1(patch_file)?,
-            vanilla_jar_hash: sha1(vanilla_jar)?,
+            vanilla_jar_hash,
             patched_jar_hash: sha1(spigot_jar)?,
-            vanilla_download_url: build_data_info.server_url,
+            vanilla_download_url,
         };
 
         patched_meta.write(version_file)?;
