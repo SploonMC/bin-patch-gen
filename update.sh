@@ -26,7 +26,7 @@ if docker container inspect sploon-bin-patch-gen > /dev/null 2>&1; then
   # if it does, check if it's running
   if [ "$(docker container inspect -f '{{.State.Status}}' sploon-bin-patch-gen)" != "running" ]; then
     docker compose down
-    docker compose up
+    docker compose up gen
 
     cd work || exit 1
     git add .
@@ -34,7 +34,7 @@ if docker container inspect sploon-bin-patch-gen > /dev/null 2>&1; then
     git push -u origin master
   fi
 else
-  docker compose up
+  docker compose up gen
 
   cd work || exit 1
   git add .
