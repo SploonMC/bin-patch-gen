@@ -6,3 +6,11 @@ services:
       - ./config.toml:/app/config.toml
       - ./work:/app/run
     mem_limit: 2G
+  tests:
+    container_name: sploon-bin-patch-gen-tests
+    build:
+      dockerfile: Dockerfile.test
+    volumes:
+      - ./config.toml:/app/config.toml
+      - ./work:/app/run
+    mem_limit: 2G
