@@ -48,6 +48,15 @@ This mode applies a patch to transform one file into another.
 There is a provided `docker-compose.yml` file which you can use. Our CI runs a cronjob with the provided `update.sh` script, which
 just runs the docker container and pushes the patches to Git.
 
+> [!IMPORTANT]
+> You need to create an empty `config.toml` before being able to run the app in docker. This config looks like such:
+> ```toml
+> java_8_home = ""
+> java_16_home = ""
+> java_17_home = ""
+> java_21_home = ""
+> ```
+
 ## Building
 To build this project, you need Cargo and a recent version of Rust from the nightly channel. Building is straightforward, like any other Rust program:
 ```bash
