@@ -16,6 +16,7 @@ use tracing::{info, warn};
 use util::dir::create_temp_dir;
 use version::fetch_spigot_version_meta;
 use version::schema::spigot::SpigotBuildData;
+use crate::maven::MavenDependency;
 
 pub mod build_tools;
 pub mod config;
@@ -24,6 +25,7 @@ pub mod jar;
 pub mod tests;
 pub mod util;
 pub mod version;
+pub mod maven;
 
 /// The user agent being used for all HTTP requests.
 pub const USER_AGENT: &str =
@@ -197,6 +199,7 @@ pub async fn run(
         let work_path = version_path.join(Path::new("work"));
         let vanilla_jar_regex = vanilla_jar_regex.clone();
         let spigot_jar_regex = spigot_jar_regex.clone();
+        let library_file = &run_dir.join(format!("{version}.libs"));
 
         let mc_version = MinecraftVersion::of(version.clone());
         let java_home = if !using_env {
@@ -217,7 +220,7 @@ pub async fn run(
                 warn!("{version} metadata is invalid or could not be read! Rebuilding...");
             } else {
                 let patched_meta = patched_meta.unwrap();
-                if remote_meta.refs == patched_meta.commit_hashes && !force_build {
+                if remote_meta.refs == patched_meta.commit_hashes && !force_build && library_file.exists() {
                     info!("Already built version {version}, skipping");
                     continue;
                 }
@@ -338,6 +341,12 @@ pub async fn run(
 
         patched_meta.write(version_file)?;
         info!("Wrote version metadata file!");
+        
+        let server_pom = version_path.join("Spigot/Spigot-Server/pom.xml");
+        
+        let (project, maven_dependencies) = maven::read_dependencies(server_pom)?;
+        
+        MavenDependency::write(project, library_file, maven_dependencies)?;
     }
 
     Ok(())

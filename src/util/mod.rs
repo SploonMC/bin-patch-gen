@@ -29,3 +29,19 @@ pub fn sha1<P: AsRef<Path>>(path: P) -> io::Result<String> {
 
     Ok(hex::encode(hasher.finalize()))
 }
+
+pub trait StringOptionExt<T> {
+    fn equals(&self, other: T) -> bool;
+}
+
+impl StringOptionExt<String> for Option<String> {
+    fn equals(&self, other: String) -> bool {
+        if self.is_none() {
+            return false;
+        }
+        
+        let string = self.clone().unwrap();
+        
+        string == other
+    }
+}
