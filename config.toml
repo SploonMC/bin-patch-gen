@@ -1,4 +1,4 @@
-java_8_home = "/usr/lib/jvm/java-8-openjdk/"
+java_8_home = "/usr/lib/jvm/java-8-openjdk/jre"
 java_16_home = "/usr/lib/jvm/java-17-openjdk/"
 java_17_home = "/usr/lib/jvm/java-17-openjdk/"
 java_21_home = "/usr/lib/jvm/java-21-temurin/"
