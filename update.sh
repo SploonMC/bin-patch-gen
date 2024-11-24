@@ -38,7 +38,7 @@ else
 
   cd work || exit 1
   git add .
-  git commit -am "first-time setup"
+  git commit -am "automated update"
   git push -u origin master
 fi
 
