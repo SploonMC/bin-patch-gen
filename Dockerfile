@@ -36,4 +36,4 @@ COPY . .
 
 RUN cargo install --path .
 
-CMD ["bin_patch_gen"]
+CMD ["bin_patch_gen", "-v", "1.21.3"]

@@ -220,7 +220,7 @@ pub async fn run(
                 warn!("{version} metadata is invalid or could not be read! Rebuilding...");
             } else {
                 let patched_meta = patched_meta.unwrap();
-                if remote_meta.refs == patched_meta.commit_hashes && !force_build && library_file.exists() {
+                if remote_meta.refs_eq(patched_meta.commit_hashes) && !force_build && library_file.exists() {
                     info!("Already built version {version}, skipping");
                     continue;
                 }
