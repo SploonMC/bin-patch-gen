@@ -8,6 +8,13 @@ git checkout release
 git branch --set-upstream-to=origin/release release
 git pull
 
+cat >config.toml <<EOF
+java_8_home = ""
+java_16_home = ""
+java_17_home = ""
+java_21_home = ""
+EOF
+
 if [[ ! -d "work/.git" ]]; then
   mkdir -p work
   cd work
